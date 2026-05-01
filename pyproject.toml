@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "token-lens"
+version = "0.1.0"
+description = "Diagnose token waste and cost inefficiency in LLM API calls"
+requires-python = ">=3.10"
+dependencies = [
+    "tiktoken>=0.7.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40.0"]
+openai    = ["openai>=1.0.0"]
+all       = ["anthropic>=0.40.0", "openai>=1.0.0"]
+dev       = ["pytest>=8.0", "pytest-cov"]
+
+[project.scripts]
+token-lens = "token_lens.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["token_lens"]
