@@ -21,11 +21,11 @@ LangChain, LlamaIndex, CrewAI, or direct SDK usage — is intercepted automatica
 import token_lens
 token_lens.patch()
 
-# Now use whatever framework you normally use — nothing else changes
+# Nothing else changes — use your framework as normal
 from langchain_anthropic import ChatAnthropic
 llm = ChatAnthropic(model="claude-sonnet-4-6")
 llm.invoke("Summarise this patient record...")
-# Waste report prints automatically
+# Waste report prints automatically after every call
 ```
 
 Works with OpenAI-based frameworks too:
@@ -61,6 +61,22 @@ print(result.waste_flags)
 token-lens request.json
 cat request.json | token-lens -
 ```
+
+## Try the demos
+
+Two runnable examples showing a 6-turn medical chatbot — bad version with all
+waste patterns active, good version with all fixes applied.
+
+```bash
+# See waste accumulate turn by turn
+python examples/demo_bad.py
+
+# Same conversation, all patterns fixed — 100/100 every turn
+python examples/demo_good.py
+```
+
+**Bad version (turn 6):** 949 tokens, efficiency score 74, $0.000723 wasted per call  
+**Good version (turn 6):** 490 tokens, efficiency score 100, $0.00 wasted per call
 
 ## What it detects
 
@@ -108,7 +124,7 @@ Waste Flags
 
 - **Token counts** use `tiktoken` (`cl100k_base`) as a local approximation. Accurate to ~95% for Anthropic models on typical English content.
 - **Cost calculation** is model-specific (input and output priced separately). Unknown models fall back to Sonnet pricing. Prices are hardcoded — update `_PRICING` in `reporter.py` if they change.
-- **Silent mode**: `DiagnosticWrapper(client, silent=True)` — runs analysis without printing, returns `RequestAnalysis` object.
+- **Silent mode**: `analyse(request, print_result=False)` — returns a `RequestAnalysis` object without printing.
 
 ## Requirements
 
