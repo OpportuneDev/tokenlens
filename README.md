@@ -45,18 +45,6 @@ Patch a specific provider only:
 token_lens.patch("anthropic")  # or "openai"
 ```
 
-### Direct client wrapper
-
-If you're making raw SDK calls (no framework):
-
-```python
-from token_lens import DiagnosticWrapper
-import anthropic
-
-client = DiagnosticWrapper(anthropic.Anthropic())
-response = client.messages.create(model="claude-sonnet-4-6", messages=[...])
-```
-
 ### Analyse a request dict directly
 
 ```python
