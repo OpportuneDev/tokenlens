@@ -2,8 +2,6 @@
 Streamlit dashboard — run with: token-lens dashboard
 """
 import sys
-import json
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -12,8 +10,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from streamlit_autorefresh import st_autorefresh
 
-from token_lens.store import read, clear, _DEFAULT_PATH
+from token_lens.store import read, clear
 
 st.set_page_config(
     page_title="token-lens",
@@ -21,9 +20,8 @@ st.set_page_config(
     layout="wide",
 )
 
-# ── Auto-refresh every 3s ────────────────────────────────────────────────────
-if "last_refresh" not in st.session_state:
-    st.session_state.last_refresh = time.time()
+# Auto-refresh every 3s when a browser is connected
+st_autorefresh(interval=3000)
 
 # ── Load data ────────────────────────────────────────────────────────────────
 records = read()
@@ -53,18 +51,16 @@ df["call"] = [f"#{i+1}" for i in range(len(df))]
 st.divider()
 m1, m2, m3, m4 = st.columns(4)
 
-total_calls   = len(df)
-avg_score     = df["efficiency_score"].mean()
-total_wasted  = df["recoverable_tokens"].sum()
-total_input   = df["total_input_tokens"].sum()
-waste_pct     = (total_wasted / total_input * 100) if total_input else 0
+total_calls  = len(df)
+avg_score    = df["efficiency_score"].mean()
+total_wasted = df["recoverable_tokens"].sum()
+total_input  = df["total_input_tokens"].sum()
+waste_pct    = (total_wasted / total_input * 100) if total_input else 0
 
-score_color = "normal" if avg_score >= 80 else ("off" if avg_score >= 50 else "inverse")
-
-m1.metric("Calls captured",     total_calls)
-m2.metric("Avg efficiency",     f"{avg_score:.0f}/100")
-m3.metric("Tokens wasted",      f"{total_wasted:,}")
-m4.metric("Waste %",            f"{waste_pct:.1f}%")
+m1.metric("Calls captured", total_calls)
+m2.metric("Avg efficiency",  f"{avg_score:.0f}/100")
+m3.metric("Tokens wasted",   f"{total_wasted:,}")
+m4.metric("Waste %",         f"{waste_pct:.1f}%")
 
 st.divider()
 
@@ -87,9 +83,8 @@ with left:
         margin=dict(t=10, b=10),
         height=280,
     )
-    st.plotly_chart(fig_score, use_container_width=True)
+    st.plotly_chart(fig_score, width="stretch")
 
-# ── Token composition (last call) ─────────────────────────────────────────────
 with right:
     st.subheader("Token composition (last call)")
     last = records[-1]
@@ -100,13 +95,13 @@ with right:
         hole=0.4,
     )
     fig_pie.update_layout(margin=dict(t=10, b=10), height=280, showlegend=True)
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, width="stretch")
 
-# ── Token growth over turns ───────────────────────────────────────────────────
+# ── Token usage per call ──────────────────────────────────────────────────────
 st.subheader("Token usage per call")
 fig_tokens = go.Figure()
-fig_tokens.add_bar(x=df["call"], y=df["total_input_tokens"],  name="Input tokens",  marker_color="#4f8bf9")
-fig_tokens.add_bar(x=df["call"], y=df["output_tokens"].fillna(0), name="Output tokens", marker_color="#f9a84f")
+fig_tokens.add_bar(x=df["call"], y=df["total_input_tokens"],       name="Input tokens",  marker_color="#4f8bf9")
+fig_tokens.add_bar(x=df["call"], y=df["output_tokens"].fillna(0),  name="Output tokens", marker_color="#f9a84f")
 fig_tokens.update_layout(
     barmode="stack",
     height=220,
@@ -114,40 +109,39 @@ fig_tokens.update_layout(
     yaxis_title="Tokens",
     xaxis_title="",
 )
-st.plotly_chart(fig_tokens, use_container_width=True)
+st.plotly_chart(fig_tokens, width="stretch")
 
 st.divider()
 
-# ── Waste flags across session ────────────────────────────────────────────────
+# ── Waste flags ───────────────────────────────────────────────────────────────
 st.subheader("Waste flags — all calls")
 
 all_flags = []
 for i, rec in enumerate(records):
     for flag in rec["flags"]:
         all_flags.append({
-            "Call":    f"#{i+1}",
-            "Model":   rec["model"],
-            "Severity": flag["severity"],
-            "Pattern":  flag["pattern"],
+            "Call":          f"#{i+1}",
+            "Model":         rec["model"],
+            "Severity":      flag["severity"],
+            "Pattern":       flag["pattern"],
             "Tokens wasted": flag["tokens_wasted"],
-            "Fix":      flag["fix"],
+            "Fix":           flag["fix"],
         })
 
 if all_flags:
     flags_df = pd.DataFrame(all_flags)
 
     def severity_color(val):
-        colors = {"HIGH": "background-color: #ffe0e0", "MEDIUM": "background-color: #fff3cd", "LOW": "background-color: #e0f0ff"}
-        return colors.get(val, "")
+        return {
+            "HIGH":   "background-color: #ffe0e0",
+            "MEDIUM": "background-color: #fff3cd",
+            "LOW":    "background-color: #e0f0ff",
+        }.get(val, "")
 
     st.dataframe(
         flags_df.style.map(severity_color, subset=["Severity"]),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 else:
     st.success("No waste flags detected across this session.")
-
-# ── Auto-refresh ─────────────────────────────────────────────────────────────
-time.sleep(3)
-st.rerun()
