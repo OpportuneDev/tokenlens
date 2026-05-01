@@ -12,29 +12,49 @@ pip install git+https://github.com/OpportuneDev/tokenlens.git
 
 ## Usage
 
-### Drop-in wrapper
+### Patch the SDK (works with any framework)
+
+Call `patch()` once at startup. Every LLM call your app makes — whether through
+LangChain, LlamaIndex, CrewAI, or direct SDK usage — is intercepted automatically.
+
+```python
+import token_lens
+token_lens.patch()
+
+# Now use whatever framework you normally use — nothing else changes
+from langchain_anthropic import ChatAnthropic
+llm = ChatAnthropic(model="claude-sonnet-4-6")
+llm.invoke("Summarise this patient record...")
+# Waste report prints automatically
+```
+
+Works with OpenAI-based frameworks too:
+
+```python
+import token_lens
+token_lens.patch()
+
+from langchain_openai import ChatOpenAI
+llm = ChatOpenAI(model="gpt-4o")
+llm.invoke("...")
+```
+
+Patch a specific provider only:
+
+```python
+token_lens.patch("anthropic")  # or "openai"
+```
+
+### Direct client wrapper
+
+If you're making raw SDK calls (no framework):
 
 ```python
 from token_lens import DiagnosticWrapper
 import anthropic
 
 client = DiagnosticWrapper(anthropic.Anthropic())
-
-response = client.messages.create(
-    model="claude-sonnet-4-6",
-    messages=[{"role": "user", "content": "..."}],
-)
-# Waste report prints automatically after every call
-```
-
-Works with OpenAI too:
-
-```python
-from token_lens import DiagnosticWrapper
-import openai
-
-client = DiagnosticWrapper(openai.OpenAI())
-response = client.chat.completions.create(model="gpt-4o", messages=[...])
+response = client.messages.create(model="claude-sonnet-4-6", messages=[...])
 ```
 
 ### Analyse a request dict directly
@@ -42,7 +62,9 @@ response = client.chat.completions.create(model="gpt-4o", messages=[...])
 ```python
 from token_lens import analyse
 
-analyse(request_dict, output_tokens=500)
+result = analyse(request_dict, output_tokens=500, print_result=False)
+print(result.efficiency_score)
+print(result.waste_flags)
 ```
 
 ### CLI
