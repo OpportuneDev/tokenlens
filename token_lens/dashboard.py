@@ -141,7 +141,7 @@ if all_flags:
         return colors.get(val, "")
 
     st.dataframe(
-        flags_df.style.applymap(severity_color, subset=["Severity"]),
+        flags_df.style.map(severity_color, subset=["Severity"]),
         use_container_width=True,
         hide_index=True,
     )
