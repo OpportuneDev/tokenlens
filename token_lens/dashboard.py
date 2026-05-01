@@ -1,16 +1,19 @@
 """
 Streamlit dashboard — run with: token-lens dashboard
 """
+import sys
 import json
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from .store import read, clear, _DEFAULT_PATH
+from token_lens.store import read, clear, _DEFAULT_PATH
 
 st.set_page_config(
     page_title="token-lens",
