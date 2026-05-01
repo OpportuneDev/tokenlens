@@ -66,9 +66,9 @@ cat request.json | token-lens -
 ## Sample output
 
 ```
-╭─────────────────────────────────────────────╮
-│ token-lens  ·  claude-sonnet-4-6  ·  anthropic │
-╰─────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────╮
+│ token-lens  ·  claude-sonnet-4-6  ·  anthropic        │
+╰──────────────────────────────────────────────────────╯
 
 Token Breakdown
 
@@ -86,14 +86,19 @@ Efficiency score: 58/100   Recoverable tokens: 466 (41.7%)
 
 Waste Flags
 
-  HIGH    UNCACHED_SYSTEM_PROMPT    336 tokens
-  MEDIUM  UNBOUNDED_HISTORY         130 tokens
+  Severity  Pattern                  Tokens wasted  Cost wasted
+  ─────────────────────────────────────────────────────────────
+  HIGH      UNCACHED_SYSTEM_PROMPT             336   $0.001008
+  MEDIUM    UNBOUNDED_HISTORY                  130   $0.000390
+
+  Cost wasted this call: $0.001398  (input @ $3.00/MTok, output @ $15.00/MTok)
 ```
 
 ## Notes
 
-- Token counts use `tiktoken` (`cl100k_base`) as a local approximation. Accurate to ~95% for Anthropic models on typical content.
-- Silent mode: `DiagnosticWrapper(client, silent=True)` — runs analysis without printing, returns `RequestAnalysis` object.
+- **Token counts** use `tiktoken` (`cl100k_base`) as a local approximation. Accurate to ~95% for Anthropic models on typical English content.
+- **Cost calculation** is model-specific (input and output priced separately). Unknown models fall back to Sonnet pricing. Prices are hardcoded — update `_PRICING` in `reporter.py` if they change.
+- **Silent mode**: `DiagnosticWrapper(client, silent=True)` — runs analysis without printing, returns `RequestAnalysis` object.
 
 ## Requirements
 

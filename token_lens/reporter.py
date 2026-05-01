@@ -15,22 +15,27 @@ try:
 except ImportError:
     _HAS_RICH = False
 
-# Input token price per million — update as pricing changes
-_COST_PER_MTOK: dict[str, float] = {
-    "claude-opus":   15.0,
-    "claude-sonnet":  3.0,
-    "claude-haiku":   0.25,
-    "gpt-4o":         2.5,
-    "gpt-4o-mini":    0.15,
-    "gpt-4-turbo":   10.0,
-    "gpt-3.5-turbo":  0.5,
+# Pricing per million tokens, by role.
+# Source: provider pricing pages — update as pricing changes.
+# Structure: { model_key: (input_price, output_price) }
+_PRICING: dict[str, tuple[float, float]] = {
+    "claude-opus":    (15.0,  75.0),
+    "claude-sonnet":  ( 3.0,  15.0),
+    "claude-haiku":   ( 0.25,  1.25),
+    "gpt-4o":         ( 2.5,  10.0),
+    "gpt-4o-mini":    ( 0.15,  0.60),
+    "gpt-4-turbo":    (10.0,  30.0),
+    "gpt-3.5-turbo":  ( 0.5,   1.50),
 }
+_DEFAULT_PRICING = (3.0, 15.0)  # Sonnet fallback
 
-def _cost_per_token(model: str) -> float:
-    for key, price in _COST_PER_MTOK.items():
+
+def _get_pricing(model: str) -> tuple[float, float]:
+    """Returns (input_price_per_token, output_price_per_token)."""
+    for key, (inp, out) in _PRICING.items():
         if key in model.lower():
-            return price / 1_000_000
-    return 3.0 / 1_000_000  # default: Sonnet pricing
+            return inp / 1_000_000, out / 1_000_000
+    return _DEFAULT_PRICING[0] / 1_000_000, _DEFAULT_PRICING[1] / 1_000_000
 
 
 def _score_color(score: int) -> str:
@@ -61,7 +66,7 @@ def print_report(analysis: RequestAnalysis) -> None:
 
 def _rich_report(analysis: RequestAnalysis) -> None:
     console = Console()
-    cpt = _cost_per_token(analysis.model)
+    input_cpt, output_cpt = _get_pricing(analysis.model)
 
     console.print()
     console.print(Panel(
@@ -117,6 +122,8 @@ def _rich_report(analysis: RequestAnalysis) -> None:
     )
     for flag in flags_sorted:
         sc = _severity_color(flag.severity)
+        # Waste is in input tokens unless it's a verbose output flag
+        cpt = output_cpt if flag.pattern == "VERBOSE_OUTPUT" else input_cpt
         call_cost = flag.tokens_wasted * cpt
         flag_table.add_row(
             f"[{sc}]{flag.severity.value}[/{sc}]",
@@ -127,13 +134,18 @@ def _rich_report(analysis: RequestAnalysis) -> None:
             flag.fix[:55] + ("…" if len(flag.fix) > 55 else ""),
         )
 
-    total_waste_cost = analysis.recoverable_tokens * cpt
+    # Total: input waste + output waste (verbose output flag)
+    input_waste = sum(f.tokens_wasted for f in flags_sorted if f.pattern != "VERBOSE_OUTPUT")
+    output_waste = sum(f.tokens_wasted for f in flags_sorted if f.pattern == "VERBOSE_OUTPUT")
+    total_waste_cost = (input_waste * input_cpt) + (output_waste * output_cpt)
     console.print(flag_table)
-    console.print(f"  [bold]Cost wasted this call:[/bold] [red]${total_waste_cost:.6f}[/red]\n")
+    console.print(f"  [bold]Cost wasted this call:[/bold] [red]${total_waste_cost:.6f}[/red]  "
+                  f"[dim](input @ ${input_cpt*1_000_000:.2f}/MTok, "
+                  f"output @ ${output_cpt*1_000_000:.2f}/MTok)[/dim]\n")
 
 
 def _plain_report(analysis: RequestAnalysis) -> None:
-    cpt = _cost_per_token(analysis.model)
+    input_cpt, output_cpt = _get_pricing(analysis.model)
     print(f"\n=== token-lens | {analysis.model} | {analysis.provider} ===")
     print(f"\nToken Breakdown (total input: {analysis.total_input_tokens})")
     for seg in analysis.segments:
@@ -151,10 +163,14 @@ def _plain_report(analysis: RequestAnalysis) -> None:
 
     print("\nWaste Flags:")
     for flag in sorted(analysis.waste_flags, key=lambda f: {"HIGH": 0, "MEDIUM": 1, "LOW": 2}[f.severity.value]):
+        cpt = output_cpt if flag.pattern == "VERBOSE_OUTPUT" else input_cpt
         call_cost = flag.tokens_wasted * cpt
         print(f"  [{flag.severity.value}] {flag.pattern} — {flag.tokens_wasted} tokens (${call_cost:.6f})")
         print(f"    {flag.detail}")
         print(f"    Fix: {flag.fix}")
 
-    total = analysis.recoverable_tokens * cpt
-    print(f"\nCost wasted this call: ${total:.6f}\n")
+    input_waste = sum(f.tokens_wasted for f in analysis.waste_flags if f.pattern != "VERBOSE_OUTPUT")
+    output_waste = sum(f.tokens_wasted for f in analysis.waste_flags if f.pattern == "VERBOSE_OUTPUT")
+    total = (input_waste * input_cpt) + (output_waste * output_cpt)
+    print(f"\nCost wasted this call: ${total:.6f} "
+          f"(input @ ${input_cpt*1_000_000:.2f}/MTok, output @ ${output_cpt*1_000_000:.2f}/MTok)\n")
