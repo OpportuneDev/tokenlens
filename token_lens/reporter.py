@@ -15,6 +15,23 @@ try:
 except ImportError:
     _HAS_RICH = False
 
+# Input token price per million — update as pricing changes
+_COST_PER_MTOK: dict[str, float] = {
+    "claude-opus":   15.0,
+    "claude-sonnet":  3.0,
+    "claude-haiku":   0.25,
+    "gpt-4o":         2.5,
+    "gpt-4o-mini":    0.15,
+    "gpt-4-turbo":   10.0,
+    "gpt-3.5-turbo":  0.5,
+}
+
+def _cost_per_token(model: str) -> float:
+    for key, price in _COST_PER_MTOK.items():
+        if key in model.lower():
+            return price / 1_000_000
+    return 3.0 / 1_000_000  # default: Sonnet pricing
+
 
 def _score_color(score: int) -> str:
     if score >= 80:
@@ -44,6 +61,7 @@ def print_report(analysis: RequestAnalysis) -> None:
 
 def _rich_report(analysis: RequestAnalysis) -> None:
     console = Console()
+    cpt = _cost_per_token(analysis.model)
 
     console.print()
     console.print(Panel(
@@ -86,9 +104,10 @@ def _rich_report(analysis: RequestAnalysis) -> None:
         return
 
     flag_table = Table(title="Waste Flags", box=box.SIMPLE_HEAD)
-    flag_table.add_column("Severity",      style="bold", width=8)
-    flag_table.add_column("Pattern",       style="bold cyan")
-    flag_table.add_column("Tokens wasted", justify="right")
+    flag_table.add_column("Severity",       style="bold", width=8)
+    flag_table.add_column("Pattern",        style="bold cyan")
+    flag_table.add_column("Tokens wasted",  justify="right")
+    flag_table.add_column("Cost wasted",    justify="right")
     flag_table.add_column("Detail")
     flag_table.add_column("Fix")
 
@@ -98,19 +117,23 @@ def _rich_report(analysis: RequestAnalysis) -> None:
     )
     for flag in flags_sorted:
         sc = _severity_color(flag.severity)
+        call_cost = flag.tokens_wasted * cpt
         flag_table.add_row(
             f"[{sc}]{flag.severity.value}[/{sc}]",
             flag.pattern,
             str(flag.tokens_wasted),
-            flag.detail[:60] + ("…" if len(flag.detail) > 60 else ""),
-            flag.fix[:60] + ("…" if len(flag.fix) > 60 else ""),
+            f"${call_cost:.6f}",
+            flag.detail[:55] + ("…" if len(flag.detail) > 55 else ""),
+            flag.fix[:55] + ("…" if len(flag.fix) > 55 else ""),
         )
 
+    total_waste_cost = analysis.recoverable_tokens * cpt
     console.print(flag_table)
-    console.print()
+    console.print(f"  [bold]Cost wasted this call:[/bold] [red]${total_waste_cost:.6f}[/red]\n")
 
 
 def _plain_report(analysis: RequestAnalysis) -> None:
+    cpt = _cost_per_token(analysis.model)
     print(f"\n=== token-lens | {analysis.model} | {analysis.provider} ===")
     print(f"\nToken Breakdown (total input: {analysis.total_input_tokens})")
     for seg in analysis.segments:
@@ -128,7 +151,10 @@ def _plain_report(analysis: RequestAnalysis) -> None:
 
     print("\nWaste Flags:")
     for flag in sorted(analysis.waste_flags, key=lambda f: {"HIGH": 0, "MEDIUM": 1, "LOW": 2}[f.severity.value]):
-        print(f"  [{flag.severity.value}] {flag.pattern} — {flag.tokens_wasted} tokens wasted")
+        call_cost = flag.tokens_wasted * cpt
+        print(f"  [{flag.severity.value}] {flag.pattern} — {flag.tokens_wasted} tokens (${call_cost:.6f})")
         print(f"    {flag.detail}")
         print(f"    Fix: {flag.fix}")
-    print()
+
+    total = analysis.recoverable_tokens * cpt
+    print(f"\nCost wasted this call: ${total:.6f}\n")
