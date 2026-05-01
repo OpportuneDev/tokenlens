@@ -1,5 +1,5 @@
 """
-CLI entry point: token-lens <request.json>
+CLI entry point: token-lens <request.json> | token-lens dashboard
 """
 from __future__ import annotations
 
@@ -8,22 +8,28 @@ import sys
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-        print("Usage: token-lens <request.json> [--monthly-calls N] [--provider anthropic|openai]")
-        print("       cat request.json | token-lens -")
+    args = sys.argv[1:]
+
+    if not args or args[0] in ("-h", "--help"):
+        print("Usage:")
+        print("  token-lens dashboard              Launch the visual dashboard")
+        print("  token-lens <request.json>         Analyse a saved request file")
+        print("  cat request.json | token-lens -   Analyse from stdin")
         sys.exit(0)
 
-    monthly_calls = 10_000
-    provider = None
+    if args[0] == "dashboard":
+        import subprocess
+        import os
+        dashboard_path = str(__import__("pathlib").Path(__file__).parent / "dashboard.py")
+        subprocess.run(["streamlit", "run", dashboard_path], check=True)
+        return
 
-    args = sys.argv[1:]
+    provider = None
+    path = args[0]
     for i, arg in enumerate(args):
-        if arg == "--monthly-calls" and i + 1 < len(args):
-            monthly_calls = int(args[i + 1])
         if arg == "--provider" and i + 1 < len(args):
             provider = args[i + 1]
 
-    path = args[0]
     if path == "-":
         data = json.load(sys.stdin)
     else:
@@ -31,4 +37,4 @@ def main():
             data = json.load(f)
 
     from .core import analyse
-    analyse(data, provider=provider, monthly_calls=monthly_calls)
+    analyse(data, provider=provider)

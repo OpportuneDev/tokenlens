@@ -7,6 +7,7 @@ from .analyzer import decompose
 from .models import RequestAnalysis
 from .patterns import run_all
 from .reporter import compute_efficiency_score, print_report
+from . import store as _store
 
 
 def analyse(
@@ -14,6 +15,7 @@ def analyse(
     output_tokens: int | None = None,
     provider: str | None = None,
     print_result: bool = True,
+    persist: bool = True,
 ) -> RequestAnalysis:
     segments, detected_provider = decompose(request, provider)
     total_input = sum(s.tokens for s in segments)
@@ -37,5 +39,8 @@ def analyse(
 
     if print_result:
         print_report(analysis)
+
+    if persist:
+        _store.write(analysis)
 
     return analysis

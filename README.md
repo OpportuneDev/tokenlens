@@ -62,6 +62,22 @@ token-lens request.json
 cat request.json | token-lens -
 ```
 
+## Dashboard
+
+Every call is automatically saved to `~/.tokenlens/session.json`. Launch the dashboard to visualise waste across your session:
+
+```bash
+token-lens dashboard
+```
+
+Shows:
+- Efficiency score trend across all calls
+- Token composition breakdown (system prompt vs history vs tools vs user)
+- Token usage per call (input + output stacked)
+- All waste flags across the session with severity and fix
+
+Auto-refreshes every 3 seconds as new calls come in.
+
 ## Try the demos
 
 Two runnable examples showing a 6-turn medical chatbot — bad version with all
@@ -130,4 +146,5 @@ Waste Flags
 
 - Python 3.10+
 - `tiktoken`
-- `rich` (optional, for formatted output)
+- `rich` (optional, for terminal output)
+- `streamlit`, `plotly`, `pandas` (for dashboard)
